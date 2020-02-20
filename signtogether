@@ -1,0 +1,214 @@
+#!/usr/bin/env python3
+# Generate and work with shared RSA keys.
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization, hashes, padding
+from sys import argv, stdin, stdout, stderr
+import os
+
+usage = """Usage:
+signtogether genkey N basename
+    Produces N private key shares `basename-N.key`
+    and public key `basename.pub`
+
+signtogether sign key-n.key < file > sig-n
+    Uses partial key to sign stdin and writes signature to stdout
+
+signtogether merge key.pub sig-* > file.sig
+    Merges the partial signature files into a full signature.
+
+"""
+
+bits = 2048
+block_length = int(bits / 8)
+
+
+def write_stdout(data):
+	with os.fdopen(stdout.fileno(), "wb", closefd=False) as fh:
+		fh.write(data)
+		fh.flush()
+
+def write_bytes(filename, data):
+	with open(filename, "wb") as file:
+		file.write(data)
+
+def read_bytes(filename):
+	with open(filename, "rb") as file:
+		return file.read()
+
+def read_pubkey(filename):
+	return serialization.load_pem_public_key(
+		read_bytes(filename),
+		backend = default_backend()
+	)
+
+def write_pubkey(filename, pubkey):
+	write_bytes(filename, pubkey.public_bytes(
+		encoding = serialization.Encoding.PEM,
+		format = serialization.PublicFormat.SubjectPublicKeyInfo,
+	))
+
+def read_key(filename):
+	return serialization.load_pem_private_key(
+		read_bytes(filename),
+		backend = default_backend(),
+		password = None,
+	)
+
+def write_key(filename, key):
+	write_bytes(filename, key.private_bytes(
+		encoding = serialization.Encoding.PEM,
+		format = serialization.PrivateFormat.PKCS8,
+		encryption_algorithm = serialization.NoEncryption(),
+	))
+
+# when writing a new key based on the private components,
+# we don't fill in the Chinese Remainder Theorem (CRT) components
+# which will force OpenSSL to use only the private exponent (d)
+# and public modulus/exponent (n,e) to perform operations
+#
+# this requires that we patch out the part that validates these
+# numbers.
+def everything_ok(*args):
+	return True
+rsa._check_private_key_components = everything_ok
+
+def genkey(shares, basename):
+	if shares > 16:
+		raise("%d shares > maximum 16" % (shares))
+
+	key = rsa.generate_private_key(
+		public_exponent = 0x10001,
+		key_size = bits, 
+		backend = default_backend()
+	)
+
+	pubkey = key.public_key()
+	public = pubkey.public_numbers()
+	priv = key.private_numbers()
+
+	# write out this key
+	write_pubkey(basename + ".pub", pubkey)
+
+	# do NOT write out the full key
+	#write_key(basename + ".key", key)
+
+	fake_d_sum = priv.d
+
+	# Generate N partial versions of D
+	# such that they sum to D
+	for i in range(0,shares):
+		if i == shares-1:
+			# last fake_d is what ever is left over
+			fake_d = fake_d_sum
+		else:
+			# generate a random d value slightly shorter than d,
+			# 16 shares is the maximum
+			fake_d = int.from_bytes(
+				os.urandom(block_length - 2),
+				byteorder='big')
+			fake_d_sum -= fake_d
+
+		newkey = rsa.RSAPrivateNumbers(
+			public_numbers = public,
+			d = fake_d,
+			p = 1, # fake_p,
+			q = 1, # fake_q,
+			dmp1 = 0, # fake_dmp1,
+			dmq1 = 0, # fake_dmq1,
+			iqmp = 0, # fake_iqmp,
+		).private_key(
+			backend = default_backend(),
+		)
+		write_key("%s-%d.key" % (basename, i), newkey)
+
+
+def merge(pubkey_filename, files):
+	pubkey = read_pubkey(pubkey_filename)
+	modulus = pubkey.public_numbers().n
+
+	sig = int(1)
+
+	for filename in files:
+		b = read_bytes(filename)
+		if len(b) != block_length:
+			raise("%s: length %d != expected %d" % (filename, len(b), block_length))
+		newsig = int.from_bytes(
+			bytes = b,
+			byteorder = 'big',
+		)
+		sig = (sig * newsig) % modulus
+
+	write_stdout(sig.to_bytes(
+		length = block_length,
+		byteorder = 'big',
+	))
+
+def sign(key_filename):
+	key = read_key(key_filename)
+	pub = key.public_key().public_numbers()
+	priv = key.private_numbers()
+	exponent = priv.d
+	modulus = pub.n
+
+	# read the data from stdin
+	data = bytes(stdin.read(), 'utf-8')
+
+	# hash it with sha256
+	sha = hashes.Hash(hashes.SHA256(), backend=default_backend())
+	sha.update(data)
+	data = sha.finalize()
+
+	# pad the digest to the block length
+	pad = padding.PKCS7(128).padder()
+	data = pad.update(data)
+	data += pad.finalize()
+
+	# convert the padded digest to a big integer
+	m = int.from_bytes(
+		bytes = data,
+		byteorder = 'big',
+	)
+
+	# do the RSA signing operation
+	sig = pow(m, exponent, modulus)
+
+	write_stdout(sig.to_bytes(
+		length = block_length,
+		byteorder = 'big',
+	))
+
+if len(argv) <= 1:
+	stderr.write(usage)
+	exit(1)
+
+cmd = argv[1]
+
+if cmd == 'genkey':
+	if len(argv) != 4:
+		stderr.write(usage)
+		exit(1)
+		
+	genkey(int(argv[2]), argv[3])
+elif cmd == 'sign':
+	if len(argv) != 3:
+		stderr.write(usage)
+		exit(1)
+		
+	sign(argv[2])
+elif cmd == 'merge':
+	if len(argv) < 4:
+		stderr.write(usage)
+		exit(1)
+	merge(argv[2], argv[3:])
+elif cmd == 'help' or cmd == '-h' or cmd == '--help':
+	stdout.write(usage)
+	exit(0)
+else:
+	stderr.write(usage)
+	exit(1)
+
+# success!
+exit(0)
+	
+
