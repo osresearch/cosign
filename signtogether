@@ -7,14 +7,20 @@ from sys import argv, stdin, stdout, stderr
 import os
 
 usage = """Usage:
+
 signtogether genkey N basename
+
     Produces N private key shares `basename-N.key`
     and public key `basename.pub`
 
+
 signtogether sign key-n.key < file > sig-n
+
     Uses partial key to sign stdin and writes signature to stdout
 
+
 signtogether merge key.pub sig-* > file.sig
+
     Merges the partial signature files into a full signature.
 
 """
@@ -188,27 +194,27 @@ if cmd == 'genkey':
 	if len(argv) != 4:
 		stderr.write(usage)
 		exit(1)
-		
 	genkey(int(argv[2]), argv[3])
+
 elif cmd == 'sign':
 	if len(argv) != 3:
 		stderr.write(usage)
 		exit(1)
-		
 	sign(argv[2])
+
 elif cmd == 'merge':
 	if len(argv) < 4:
 		stderr.write(usage)
 		exit(1)
 	merge(argv[2], argv[3:])
+
 elif cmd == 'help' or cmd == '-h' or cmd == '--help':
 	stdout.write(usage)
 	exit(0)
+
 else:
 	stderr.write(usage)
 	exit(1)
 
 # success!
 exit(0)
-	
-
