@@ -8,20 +8,43 @@ import os
 
 usage = """Usage:
 
-signtogether genkey N basename
+cosign genkey N basename
 
-    Produces N private key shares `basename-N.key`
-    and public key `basename.pub`
+    Produces N private key shares `basename-N.key` and
+    public key `basename.pub`.  The public key can be
+    published and the inidividual key shares should be
+    sent to the cosigners under separate secured channels.
+
+    After generation the shares should never be brought
+    together since the private key can be regenerated
+    from all of them together.
 
 
-signtogether sign key-n.key < file > sig-n
+cosign sign key-n.key < file > sig-n
 
-    Uses partial key to sign stdin and writes signature to stdout
+    Uses partial key to sign stdin and writes signature to stdout.
+    Each cosigning party must do this separately and send their
+    partial signatures to a coordinator to combine them.
 
 
-signtogether merge key.pub sig-* > file.sig
+cosign merge key.pub sig-* > file.sig
 
     Merges the partial signature files into a full signature.
+    All of the cosigning parties must sign the same file
+    and send their partial signatures to the coordinator
+    to combine them.
+
+
+openssl dgst -verify key.pub -signature file.sig < file
+
+    Verify the merged signature with the public key.
+
+
+openssl rsautl -verify -pubin -inkey key.pub -asn1parse -in file
+
+    Produce an ASN1 tree of the signed file for debugging if
+    the verification fails for some reason.
+
 
 """
 
@@ -97,7 +120,7 @@ def genkey(shares, basename):
 	write_pubkey(basename + ".pub", pubkey)
 
 	# do NOT write out the full key
-	#write_key(basename + ".key", key)
+	write_key(basename + ".key", key)
 
 	fake_d_sum = priv.d
 
@@ -150,6 +173,80 @@ def merge(pubkey_filename, files):
 		byteorder = 'big',
 	))
 
+
+"""From: https://tools.ietf.org/html/rfc3447#section-9.2
+
+   1. Apply the hash function to the message M to produce a hash value
+      H:
+
+         H = Hash(M).
+
+      If the hash function outputs "message too long," output "message
+      too long" and stop.
+
+   2. Encode the algorithm ID for the hash function and the hash value
+      into an ASN.1 value of type DigestInfo (see Appendix A.2.4) with
+      the Distinguished Encoding Rules (DER), where the type DigestInfo
+      has the syntax
+
+      DigestInfo ::= SEQUENCE {
+          digestAlgorithm AlgorithmIdentifier,
+          digest OCTET STRING
+      }
+
+      The first field identifies the hash function and the second
+      contains the hash value.  Let T be the DER encoding of the
+      DigestInfo value (see the notes below) and let tLen be the length
+      in octets of T.
+
+   3. If emLen < tLen + 11, output "intended encoded message length too
+      short" and stop.
+
+   4. Generate an octet string PS consisting of emLen - tLen - 3 octets
+      with hexadecimal value 0xff.  The length of PS will be at least 8
+      octets.
+
+   5. Concatenate PS, the DER encoding T, and other padding to form the
+      encoded message EM as
+
+         EM = 0x00 || 0x01 || PS || 0x00 || T.
+
+   6. Output EM.
+
+Notes.
+
+   1. For the six hash functions mentioned in Appendix B.1, the DER
+      encoding T of the DigestInfo value is equal to the following:
+
+      SHA-256: (0x)30 31 30 0d 06 09 60 86 48 01 65 03 04 02 01 05 00
+                   04 20 || H.
+"""
+
+def pkcs1_1v5_encode(data):
+	sha = hashes.Hash(hashes.SHA256(), backend=default_backend())
+	sha.update(data)
+	H = sha.finalize()
+
+	# DER encoding of the digestInfo struct with the SHA256 OID
+	# and the 20-byte data
+	T = bytes([
+0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20
+]) + H
+
+	emLen = block_length
+	tLen = len(T)
+	if emLen < tLen + 11:
+		raise("intended encoded message length too short")
+
+	psLen = emLen - tLen - 3
+	PS = bytearray(psLen)
+	for i in range(0,psLen):
+		PS[i] = 0xFF
+
+	EM = bytes([0x00, 0x01]) + PS + bytes([0x00]) + T
+	#print(EM)
+	return EM
+
 def sign(key_filename):
 	key = read_key(key_filename)
 	pub = key.public_key().public_numbers()
@@ -158,17 +255,11 @@ def sign(key_filename):
 	modulus = pub.n
 
 	# read the data from stdin
-	data = bytes(stdin.read(), 'utf-8')
+	#data = bytes(stdin.read(), 'utf-8')
+	with os.fdopen(stdin.fileno(), "rb", closefd=False) as fh:
+		data = fh.read()
 
-	# hash it with sha256
-	sha = hashes.Hash(hashes.SHA256(), backend=default_backend())
-	sha.update(data)
-	data = sha.finalize()
-
-	# pad the digest to the block length
-	pad = padding.PKCS7(128).padder()
-	data = pad.update(data)
-	data += pad.finalize()
+	data = pkcs1_1v5_encode(data)
 
 	# convert the padded digest to a big integer
 	m = int.from_bytes(
