@@ -15,6 +15,13 @@ generate a valid RSA signature.  It is also simplified in that the
 initial key splitting stage requires a "trusted dealer" to perform
 the split and hand the shards to the parties.
 
+**WARNING**
+`cosign` is currently in the proof-of-concept stage.  The security
+properties of the key sharding has not been reviewed for vulnerabilities
+and the Python modular exponentiation function is not side-channel safe.
+
+# Example use cases
+
 One use case for this sort of signature system is an automated Certificate
 Authority (CA) that signs SSL certs.  By splitting the CA's Root Key to
 multiple separate machines it becomes harder for an attacker to steal
@@ -28,10 +35,14 @@ For high-assurance use cases, it is desirable that multiple parties must
 reproducibly build the firmware image and individually sign the image
 so that no single developer can subvert the security of the boot process.
 
-**WARNING**
-`cosign` is currently in the proof-of-concept stage.  The security
-properties of the key sharding has not been reviewed for vulnerabilities
-and the Python modular exponentiation function is not side-channel safe.
+The lack of a threshold (or a k-of-k threshold) means that a valid
+signature also indicates unanimous consent by the parties performing
+the signing.  If any of them do not sign or provide a bad partial
+signature, then the resulting merged signature will not be valid.
+It is not possible to identify which party generated an invalid
+partial signature.
+
+
 
 # Usage
 
