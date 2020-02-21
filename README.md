@@ -15,9 +15,16 @@ generate a valid RSA signature.  It is also simplified in that the
 initial key splitting stage requires a "trusted dealer" to perform
 the split and hand the shards to the parties.
 
-An example use for this is to interoperate with UEFI Secureboot, which
-requires a single RSA signature on an executable to accept it.  For
-high-assurance use cases, it is desirable that multiple parties must
+One use case for this sort of signature system is an automated Certificate
+Authority (CA) that signs SSL certs.  By splitting the CA's Root Key to
+multiple separate machines it becomes harder for an attacker to steal
+the root key and produce unauthorized signed certs for domains they do
+not control.  The logging mechanisms can also be spread across multiple
+machines, making it harder for rogue certs to be secretly signed.
+
+Another example use for this is to interoperate with UEFI Secureboot,
+which requires a single RSA signature on an executable to accept it.
+For high-assurance use cases, it is desirable that multiple parties must
 reproducibly build the firmware image and individually sign the image
 so that no single developer can subvert the security of the boot process.
 
