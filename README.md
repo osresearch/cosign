@@ -4,7 +4,7 @@
 
 The `cosign` tool allows multiple cooperating parties to generate an RSA
 key and split it between themselves, and then perform partial signatures
-of a message that can be combined into a single valid RSA signatue of
+of a message that can be combined into a single valid RSA signature of
 that message, without any of the parties having a complete copy of the
 private key after the initial generate stage.
 
