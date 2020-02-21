@@ -3,10 +3,10 @@
 # `cosign`: Cooperative RSA signatures
 
 The `cosign` tool allows multiple cooperating parties to generate an RSA
-key and split it between themselves, and then perform partial signatures
-of a message that can be combined into a single valid RSA signature of
-that message, without any of the parties having a complete copy of the
-private key after the initial generate stage.
+key and split the private key into shards between themselves, and then
+perform partial signatures of a message that can be combined into a single
+valid RSA signature of that message, without any of the parties having
+a complete copy of the private key after the initial key generation stage.
 
 The number of parties is unlimited, although this is not a threshold
 signature scheme where only a subset are required -- with `cosign`
@@ -37,12 +37,15 @@ and signature merging.
 cosign genkey N basename
 ```
 
-Produces N private key shares `basename-N.key` and public key
-`basename.pub`.  The public key can be published and the inidividual key
+Produces N private key shares `basename-0.key`, `basename-1.key`, ...
+`basename-(N-1).key` and the public key `basename.pub`.
+The public key can be published and the inidividual key
 shares should be sent to the cosigners under separate secured channels.
 
 After generation the shares should never be brought together since the
 private key can be regenerated from all of them together.
+Additionally, the key shards currently are not password protected,
+so the recipients must protect them.
 
 
 ## Partial signature generation
@@ -124,7 +127,8 @@ hardware tokens use to perform efficient RSA operations.
 # Inspiration
 
 This is inspired by an reply [posted to crypto.stackexchange.com](https://crypto.stackexchange.com/questions/67548/secure-multi-party-computation-for-digital-signature) by [@poncho](https://crypto.stackexchange.com/users/452/poncho)
-as a "_fairly straight-forward method using RSA_":
+as a "_fairly straight-forward method using RSA_", which is likely based on Boyd's
+additive secret sharing:
 
 > ## Key generation phase:
 >
