@@ -15,7 +15,7 @@ generate a valid RSA signature.  It is also simplified in that the
 initial key splitting stage requires a "trusted dealer" to perform
 the split and hand the shards to the parties.
 
-An example use for this is to interopate with UEFI Secureboot, which
+An example use for this is to interoperate with UEFI Secureboot, which
 requires a single RSA signature on an executable to accept it.  For
 high-assurance use cases, it is desirable that multiple parties must
 reproducibly build the firmware image and individually sign the image
@@ -26,24 +26,61 @@ so that no single developer can subvert the security of the boot process.
 
 The tool has three modes: key generation, partial signature generation, and signature merging.
 
-* `cosign genkey N basename`
+## Key generation and dealing
 
-Produces N private key shares `basename-N.key` and public key `basename.pub`
+```
+cosign genkey N basename
+```
 
-* `cosign sign key-n.key < file > sig-n`
+Produces N private key shares `basename-N.key` and
+public key `basename.pub`.  The public key can be
+published and the inidividual key shares should be
+sent to the cosigners under separate secured channels.
 
-Uses partial key N to sign data read from `stdin` and writes raw partial signature to `stdout`
+After generation the shares should never be brought
+together since the private key can be regenerated
+from all of them together.
 
-* `cosign merge key.pub sig-* > file.sig`
+
+## Partial signature generation
+
+```
+cosign sign key-n.key < file > sig-n
+```
+
+Uses partial key to sign stdin and writes signature to stdout.
+Each cosigning party must do this separately and send their
+partial signatures to a coordinator to combine them.
+
+
+## Signature merging
+```
+cosign merge key.pub sig-* > file.sig
+```
 
 Merges the partial signature files into a full signature.
+All of the cosigning parties must sign the same file
+and send their partial signatures to the coordinator
+to combine them.
+
+
+## Verifying signature
+```
+openssl dgst -verify key.pub -signature file.sig < file
+```
+
+Verify the merged signature with the public key.
+
+
+```
+openssl rsautl -verify -pubin -inkey key.pub -asn1parse -in file
+```
+
+Produce an ASN1 tree of the signed file for debugging if
+the verification fails for some reason.
 
 
 # Limitations
-
-Unfortunately the partial private keys are not compatible with hardware tokens like Yubikeys
-since they do not have the Chinese Remainder Theorem (CRT) components that it uses to perform
-efficient RSA operations.
 
 `cosign` requires a trusted dealer to perform the key split.
 
@@ -51,7 +88,13 @@ efficient RSA operations.
 produce a valid signature.  2-of-3 could be done by producing multiple shards for each
 combination, but beyond that the system would become unweildy.
 
-The security of the partial signatures is not known.
+The private key is recoverable if all of the shards are combined.
+
+The security properties of the partial signatures is not known.
+
+Unfortunately the partial private keys are not compatible with hardware tokens like Yubikeys
+since they do not have the Chinese Remainder Theorem (CRT) components that it uses to perform
+efficient RSA operations.
 
 
 # Inspiration
