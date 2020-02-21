@@ -27,15 +27,15 @@ This is inspired by an idea from https://crypto.stackexchange.com/questions/6754
 
 The tool has three modes: key generation, partial signature generation, and signature merging.
 
-* `signtogether genkey N basename`
+* `cosign genkey N basename`
 
 Produces N private key shares `basename-N.key` and public key `basename.pub`
 
-* `signtogether sign key-n.key < file > sig-n`
+* `cosign sign key-n.key < file > sig-n`
 
 Uses partial key N to sign data read from `stdin` and writes raw partial signature to `stdout`
 
-* `signtogether merge key.pub sig-* > file.sig`
+* `cosign merge key.pub sig-* > file.sig`
 
 Merges the partial signature files into a full signature.
 
