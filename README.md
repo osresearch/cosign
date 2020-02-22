@@ -55,10 +55,11 @@ and signature merging.
 cosign genkey N basename
 ```
 
-Produces N private key shares `basename-0.key`, `basename-1.key`, ...
-`basename-(N-1).key` and the public key `basename.pub`.
-The public key can be published and the inidividual key
-shares should be sent to the cosigners under separate secured channels.
+Produces a 2048 bit RSA key pair in memory and divides it into N private key
+shares `basename-0.key`, `basename-1.key`, ...  `basename-(N-1).key`
+and the public key `basename.pub`.  The public key can be published and
+the inidividual key shares should be sent to the cosigners under separate
+secured channels.
 
 After generation the shares should never be brought together since the
 private key can be regenerated from all of them together.
