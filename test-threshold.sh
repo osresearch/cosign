@@ -66,6 +66,35 @@ openssl dgst \
 
 
 #
+# Regenerate a new key from two of the shards
+# and try a threshold signature
+#
+./cosign split $TMP/newkey $TMP/key-2.key $TMP/key-0.key \
+|| die "key re-split failed"
+
+./cosign sign $TMP/newkey-1.key \
+	< $TMP/file.txt \
+	> $TMP/newsig-1 \
+|| die "1 signature failed"
+
+./cosign sign $TMP/newkey-2.key \
+	< $TMP/file.txt \
+	> $TMP/newsig-2 \
+|| die "2 signature failed"
+
+./cosign merge $TMP/newkey.pub $TMP/newsig-[12] > $TMP/newsig \
+|| die "re-split merge failed"
+
+echo -n >&2 "re-split correct signatures and key:    "
+openssl dgst \
+	-verify $TMP/key.pub \
+	-signature $TMP/newsig \
+	< $TMP/file.txt \
+|| die "newsig signature verification failed"
+
+
+
+#
 # Try the wrong file
 #
 echo "Wrong file" > $TMP/wrong.txt

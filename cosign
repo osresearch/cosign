@@ -19,6 +19,7 @@ cosign genkey N basename
     together since the private key can be regenerated
     from all of them together.
 
+
 cosign threshold basename
 
     Produces three private key shares `basename-N.key` and
@@ -32,6 +33,13 @@ cosign threshold basename
     After generation the shares should never be brought
     together since the private key can be regenerated
     from all of them together.
+
+
+cosign split basename key-0.key key-1.key
+
+    Reform a private key from two of three threshold key shards
+    and generate three new shards that can be shared.
+
 
 cosign sign key-n.key < file > sig-n
 
@@ -169,13 +177,7 @@ def genkey(shares, basename):
 # Generate three keys with components that allow threshold
 # reconstruction from any two of them.
 #
-def threshold(basename):
-	key = rsa.generate_private_key(
-		public_exponent = 0x10001,
-		key_size = bits, 
-		backend = default_backend()
-	)
-
+def threshold_split(basename, key):
 	pubkey = key.public_key()
 	public = pubkey.public_numbers()
 	real_d = key.private_numbers().d
@@ -223,6 +225,79 @@ def threshold(basename):
 		d = MAGIC_THRESHOLD,
 		p = fake_d_2,
 		q = real_d - fake_d_0,
+		dmp1 = 0, # fake_dmp1,
+		dmq1 = 0, # fake_dmq1,
+		iqmp = 0, # fake_iqmp,
+	).private_key(
+		backend = default_backend(),
+	))
+
+
+#
+# Create a new set of threshold keys with a
+# new public/private key pair.
+#
+def threshold_new(basename):
+	key = rsa.generate_private_key(
+		public_exponent = 0x10001,
+		key_size = bits, 
+		backend = default_backend()
+	)
+
+	threshold_split(basename, key)
+
+
+#
+# Rebuild a private key from two of the three threshold keys
+# and then generate a new set of three shares from it.
+#
+def threshold_resplit(basename, key_name0, key_name1):
+	key0 = read_key(key_name0)
+	priv0 = key0.private_numbers()
+	pub0 = key0.public_key().public_numbers()
+
+	key1 = read_key(key_name1)
+	priv1 = key1.private_numbers()
+	pub1 = key1.public_key().public_numbers()
+
+	if priv0.d != MAGIC_THRESHOLD:
+		exit("%s: not a threshold key" % (key_name0))
+	if priv1.d != MAGIC_THRESHOLD:
+		exit("%s: not a threshold key" % (key_name1))
+
+	if pub0.n != pub1.n:
+		exit("%s and %s have different public key modulii" % (key_name0, key_name1))
+
+	# extract the two shares of d
+	d00 = priv0.p
+	d01 = priv0.q
+
+	d10 = priv1.p
+	d11 = priv1.q
+
+	# the real d is one of these
+	da = d00 + d11
+	db = d01 + d10
+
+	# see if either of them works as a public-private key pair
+	c = pow(MAGIC_THRESHOLD, pub0.e, pub0.n)
+	ma = pow(c, da, pub0.n)
+	mb = pow(c, db, pub1.n)
+
+	if ma == MAGIC_THRESHOLD:
+		d = da
+	elif mb == MAGIC_THRESHOLD:
+		d = db
+	else:
+		print(da, ma)
+		print(db, mb)
+		exit("%s and %s don't make a real private key" % (key_name0, key_name1))
+
+	threshold_split(basename, rsa.RSAPrivateNumbers(
+		public_numbers = pub0,
+		d = d,
+		p = 1,
+		q = 1,
 		dmp1 = 0, # fake_dmp1,
 		dmq1 = 0, # fake_dmq1,
 		iqmp = 0, # fake_iqmp,
@@ -412,7 +487,13 @@ elif cmd == 'threshold':
 	if len(argv) != 3:
 		stderr.write(usage)
 		exit(1)
-	threshold(argv[2])
+	threshold_new(argv[2])
+
+elif cmd == 'split':
+	if len(argv) != 5:
+		stderr.write(usage)
+		exit(1)
+	threshold_resplit(argv[2], argv[3], argv[4])
 
 elif cmd == 'sign':
 	if len(argv) != 3:
