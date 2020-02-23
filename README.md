@@ -8,20 +8,17 @@ perform partial signatures of a message that can be combined into a single
 valid RSA signature of that message, without any of the parties having
 a complete copy of the private key after the initial key generation stage.
 
-In the general number of parties is unlimited, although this is not
-a threshold signature scheme where only a subset are required -- with
-`cosign` all the parties must perform their partial signature to be able
-to generate a valid RSA signature.  It is also simplified in that the
-initial key splitting stage requires a "trusted dealer" to perform the
-split and hand the shards to the parties.
+In the unanimous mode the number of parties is unlimited, although in this
+mode all the `cosign`ing parties must perform their partial signature
+to be able to generate a valid RSA signature.  It is also simplified
+in that the initial key splitting stage requires a "trusted dealer"
+to perform the split and hand the shards to the parties.
 
 There is a separate threshold mode that splits the key into three shards,
-two of which are required for signatures.  If the third shard is lost,
-the two can be recombined to create a new set of three shards.  This requires
-doing two signature operations for each signature and then selecting
-the correct of these for a pairwise combination that produces a valid
-signature.  Larger N-of-K schemes are possible, but this is an easy
-approach.
+two of which are required for signatures, a so called 2-of-3 threshold scheme.
+If the third shard is lost, the two can be recombined to create a new
+set of three shards.  This also requires a trusted dealer for generation
+or re-sharding.
 
 
 **WARNING**
@@ -164,11 +161,13 @@ to one of the conspiring parties.
 
 `cosign` does not have a general threshold system. 2-of-3 is implemented
 since it only requires two signature operations; beyond that the
-combinatorial complexity is quite high.  There is literature that
-suggests better systems that might be doable.
+combinatorial complexity is quite high.  This requires doing two signature
+operations for each signature and then selecting the correct of these for
+a pairwise combination that produces a valid signature.  Larger N-of-K
+schemes are possible in the literature but this is was an easy approach.
 
 The private key is recoverable if all of the shards are combined (or
-two of the three for a threshold key).  This is a good thing if it is
+two of the three threshold keys).  This is a good thing if it is
 desirable to be able to re-shard the key.  If the shards are stored in
 a hardware token, it might be difficult to recover the shard in a format
 that would allow recombination.
@@ -183,6 +182,11 @@ values, nor the primes `p` & `q` and the `dp` & `dq` values, that the
 hardware tokens use to perform efficient RSA operations.  The threshold
 keys especially are not suitable for hardware since they use non-standard
 representation.
+
+
+# Test status
+
+[![CircleCI status badge](https://circleci.com/gh/osresearch/cosign.svg?style=svg)](https://circleci.com/gh/osresearch/cosign)
 
 
 # Inspiration

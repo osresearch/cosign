@@ -69,7 +69,7 @@ openssl dgst \
 # Regenerate a new key from two of the shards
 # and try a threshold signature
 #
-./cosign split $TMP/newkey $TMP/key-2.key $TMP/key-0.key \
+./cosign threshold $TMP/newkey $TMP/key-2.key $TMP/key-0.key \
 || die "key re-split failed"
 
 ./cosign sign $TMP/newkey-1.key \
