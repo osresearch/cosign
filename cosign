@@ -3,7 +3,7 @@
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization, hashes, padding
-from sys import argv, stdin, stdout, stderr
+from sys import argv, stdin, stdout, stderr, exit
 import os
 
 usage = """Usage:
@@ -118,7 +118,7 @@ rsa._check_private_key_components = everything_ok
 
 def genkey(shares, basename):
 	if shares > 16:
-		raise RuntimeError("%d shares > maximum 16" % (shares))
+		exit("%d shares > maximum 16" % (shares))
 
 	key = rsa.generate_private_key(
 		public_exponent = 0x10001,
@@ -263,7 +263,7 @@ def merge(pubkey_filename, files):
 				sig0 = (sig0 * newsig1) % modulus
 				sig1 = (sig1 * newsig0) % modulus
 		else:
-			raise RuntimeError("%s: length %d != expected %d" % (filename, len(b), block_length))
+			exit("%s: length %d != expected %d" % (filename, len(b), block_length))
 
 	# check if sig0 or sig1 is the correct value
 	msg0 = pow(sig0, exponent, modulus).to_bytes(block_length, 'big')
@@ -276,12 +276,9 @@ def merge(pubkey_filename, files):
 	else:
 		#print(msg0)
 		#print(msg1)
-		raise RuntimeError("invalid partial signatures")
+		exit("FAILED: invalid or missing partial signatures")
 
-	write_stdout(sig.to_bytes(
-		length = block_length,
-		byteorder = 'big',
-	))
+	write_stdout(sig.to_bytes(block_length, 'big'))
 
 
 """From: https://tools.ietf.org/html/rfc3447#section-9.2
@@ -346,7 +343,7 @@ def pkcs1_1v5_encode(data):
 	emLen = block_length
 	tLen = len(T)
 	if emLen < tLen + 11:
-		raise RuntimeError("intended encoded message length too short")
+		exit("intended encoded message length too short")
 
 	psLen = emLen - tLen - 3
 	PS = bytearray(psLen)
