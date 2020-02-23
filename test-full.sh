@@ -67,17 +67,11 @@ openssl dgst \
 #
 # Try with a missing partial signature
 #
+echo -n >&2 "missing signature should fail: "
 ./cosign merge $TMP/key.pub \
 	$TMP/sig-[123] \
 	> $TMP/sig \
-|| die "signature merge failed"
-
-echo -n >&2 "missing signature should fail: "
-openssl dgst \
-	-verify $TMP/key.pub \
-	-signature $TMP/sig \
-	< $TMP/file.txt \
-&& die "missing signature verification should have failed"
+&& die "signature merge did not failed"
 
 
 #
@@ -85,17 +79,11 @@ openssl dgst \
 #
 dd status=none if=/dev/urandom of=$TMP/sig-0 bs=256 count=1
 
+echo -n >&2 "corrupt signature should fail: "
 ./cosign merge $TMP/key.pub \
 	$TMP/sig-* \
 	> $TMP/sig \
-|| die "signature merge failed"
-
-echo -n >&2 "corrupt signature should fail: "
-openssl dgst \
-	-verify $TMP/key.pub \
-	-signature $TMP/sig \
-	< $TMP/file.txt \
-&& die "corrupt signature verification should have failed"
+&& die "signature merge should have failed"
 
 
 ########

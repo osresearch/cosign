@@ -19,6 +19,19 @@ cosign genkey N basename
     together since the private key can be regenerated
     from all of them together.
 
+cosign threshold basename
+
+    Produces three private key shares `basename-N.key` and
+    public key `basename.pub`.  The public key can be
+    published and the inidividual key shares should be
+    sent to the cosigners under separate secured channels.
+
+    Two of the three private keys can be used to sign a message
+    together.
+
+    After generation the shares should never be brought
+    together since the private key can be regenerated
+    from all of them together.
 
 cosign sign key-n.key < file > sig-n
 
@@ -50,6 +63,7 @@ openssl rsautl -verify -pubin -inkey key.pub -asn1parse -in file
 
 bits = 2048
 block_length = int(bits / 8)
+MAGIC_THRESHOLD = 0x2323232323232323
 
 
 def write_stdout(data):
@@ -104,7 +118,7 @@ rsa._check_private_key_components = everything_ok
 
 def genkey(shares, basename):
 	if shares > 16:
-		raise("%d shares > maximum 16" % (shares))
+		raise RuntimeError("%d shares > maximum 16" % (shares))
 
 	key = rsa.generate_private_key(
 		public_exponent = 0x10001,
@@ -151,22 +165,118 @@ def genkey(shares, basename):
 		)
 		write_key("%s-%d.key" % (basename, i), newkey)
 
+#
+# Generate three keys with components that allow threshold
+# reconstruction from any two of them.
+#
+def threshold(basename):
+	key = rsa.generate_private_key(
+		public_exponent = 0x10001,
+		key_size = bits, 
+		backend = default_backend()
+	)
+
+	pubkey = key.public_key()
+	public = pubkey.public_numbers()
+	real_d = key.private_numbers().d
+
+	# write out this key
+	write_pubkey(basename + ".pub", pubkey)
+
+	# do NOT write out the full key
+	#write_key(basename + ".key", key)
+
+	# Generate three fake d values
+	# one for 0+1, one for 1+2 and one for 2+0
+	fake_d_0 = int.from_bytes(os.urandom(block_length - 2), byteorder='big')
+	fake_d_1 = int.from_bytes(os.urandom(block_length - 2), byteorder='big')
+	fake_d_2 = int.from_bytes(os.urandom(block_length - 2), byteorder='big')
+
+	# Generate three public keys with special components that identify them
+	# as partial threshold keys
+	write_key("%s-%d.key" % (basename, 0), rsa.RSAPrivateNumbers(
+		public_numbers = public,
+		d = MAGIC_THRESHOLD,
+		p = fake_d_0,
+		q = real_d - fake_d_1,
+		dmp1 = 0, # fake_dmp1,
+		dmq1 = 0, # fake_dmq1,
+		iqmp = 0, # fake_iqmp,
+	).private_key(
+		backend = default_backend(),
+	))
+
+	write_key("%s-%d.key" % (basename, 1), rsa.RSAPrivateNumbers(
+		public_numbers = public,
+		d = MAGIC_THRESHOLD,
+		p = fake_d_1,
+		q = real_d - fake_d_2,
+		dmp1 = 0, # fake_dmp1,
+		dmq1 = 0, # fake_dmq1,
+		iqmp = 0, # fake_iqmp,
+	).private_key(
+		backend = default_backend(),
+	))
+
+	write_key("%s-%d.key" % (basename, 2), rsa.RSAPrivateNumbers(
+		public_numbers = public,
+		d = MAGIC_THRESHOLD,
+		p = fake_d_2,
+		q = real_d - fake_d_0,
+		dmp1 = 0, # fake_dmp1,
+		dmq1 = 0, # fake_dmq1,
+		iqmp = 0, # fake_iqmp,
+	).private_key(
+		backend = default_backend(),
+	))
+
 
 def merge(pubkey_filename, files):
 	pubkey = read_pubkey(pubkey_filename)
-	modulus = pubkey.public_numbers().n
+	pub = pubkey.public_numbers()
+	modulus = pub.n
+	exponent = pub.e
 
-	sig = int(1)
+	sig0 = int(1)
+	sig1 = int(1)
 
 	for filename in files:
 		b = read_bytes(filename)
-		if len(b) != block_length:
-			raise("%s: length %d != expected %d" % (filename, len(b), block_length))
-		newsig = int.from_bytes(
-			bytes = b,
-			byteorder = 'big',
-		)
-		sig = (sig * newsig) % modulus
+
+		if len(b) == block_length:
+			# single signature
+			newsig = int.from_bytes(b, 'big')
+			sig0 = (sig0 * newsig) % modulus
+
+		elif len(b) == 2 * block_length:
+			# two threshold signature
+			newsig0 = int.from_bytes(b[:block_length], 'big')
+			newsig1 = int.from_bytes(b[block_length:], 'big')
+
+			if sig0 == 1:
+				# preload with the first file's signatures
+				sig0 = newsig0
+				sig1 = newsig1
+			else:
+				# either sig0 and newsig1 or sig1 and newsig0
+				# will complete the partial signature
+				sig0 = (sig0 * newsig1) % modulus
+				sig1 = (sig1 * newsig0) % modulus
+		else:
+			raise RuntimeError("%s: length %d != expected %d" % (filename, len(b), block_length))
+
+	# check if sig0 or sig1 is the correct value
+	msg0 = pow(sig0, exponent, modulus).to_bytes(block_length, 'big')
+	msg1 = pow(sig1, exponent, modulus).to_bytes(block_length, 'big')
+
+	if msg0[0:4] == b'\x00\x01\xff\xff':
+		sig = sig0
+	elif msg1[0:4] == b'\x00\x01\xff\xff':
+		sig = sig1
+	else:
+		#print(msg0)
+		#print(msg1)
+		raise RuntimeError("invalid partial signatures")
 
 	write_stdout(sig.to_bytes(
 		length = block_length,
@@ -236,7 +346,7 @@ def pkcs1_1v5_encode(data):
 	emLen = block_length
 	tLen = len(T)
 	if emLen < tLen + 11:
-		raise("intended encoded message length too short")
+		raise RuntimeError("intended encoded message length too short")
 
 	psLen = emLen - tLen - 3
 	PS = bytearray(psLen)
@@ -251,7 +361,6 @@ def sign(key_filename):
 	key = read_key(key_filename)
 	pub = key.public_key().public_numbers()
 	priv = key.private_numbers()
-	exponent = priv.d
 	modulus = pub.n
 
 	# read the data from stdin
@@ -267,13 +376,28 @@ def sign(key_filename):
 		byteorder = 'big',
 	)
 
-	# do the RSA signing operation
-	sig = pow(m, exponent, modulus)
+	# do the RSA signing operation with both for threshold keys
+	if priv.d == MAGIC_THRESHOLD:
+		sig0 = pow(m, priv.p, modulus)
+		sig1 = pow(m, priv.q, modulus)
 
-	write_stdout(sig.to_bytes(
-		length = block_length,
-		byteorder = 'big',
-	))
+		write_stdout(b'' +
+			sig0.to_bytes(
+				length = block_length,
+				byteorder = 'big',
+			) +
+			sig1.to_bytes(
+				length = block_length,
+				byteorder = 'big',
+			)
+		)
+	else:
+		sig = pow(m, priv.d, modulus)
+
+		write_stdout(sig.to_bytes(
+			length = block_length,
+			byteorder = 'big',
+		))
 
 if len(argv) <= 1:
 	stderr.write(usage)
@@ -286,6 +410,12 @@ if cmd == 'genkey':
 		stderr.write(usage)
 		exit(1)
 	genkey(int(argv[2]), argv[3])
+
+elif cmd == 'threshold':
+	if len(argv) != 3:
+		stderr.write(usage)
+		exit(1)
+	threshold(argv[2])
 
 elif cmd == 'sign':
 	if len(argv) != 3:
