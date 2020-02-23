@@ -120,7 +120,7 @@ def genkey(shares, basename):
 	write_pubkey(basename + ".pub", pubkey)
 
 	# do NOT write out the full key
-	write_key(basename + ".key", key)
+	#write_key(basename + ".key", key)
 
 	fake_d_sum = priv.d
 
