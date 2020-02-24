@@ -15,8 +15,11 @@ jobs:
           name: Install code coverage deps
           command: |
             sudo apt update
-            sudo apt install -y python3-coverage
-            pip3 install coverage-badge cryptography
+            sudo apt install -y \
+		python3-coverage \
+		python3-cryptography \
+
+            pip3 install coverage-badge
             python3-coverage erase
 
       - run:
@@ -31,7 +34,7 @@ jobs:
           name: coverage test report
           command: |
             python3-coverage html --include=cosign
-            coverage-badge > htmlcov/coverage.svg
+            coverage-badge -o htmlcov/coverage.svg
 
       # Store the HTML coverage report
       - store_artifacts:
