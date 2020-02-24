@@ -12,20 +12,27 @@ jobs:
 #      - python/install-deps
 #      - python/save-cache
       - run:
-          command: python3-coverage erase
-          name: Initialize coverage test
+          name: Install code coverage deps
+          command: |
+            apt update
+            apt install -y \
+              python3-coverage \
+              coverage-badge \
+            python3-coverage erase
+
       - run:
-          command: ./tests/test-unanimous.sh
           name: Test Unanimous keys
+          command: ./tests/test-unanimous.sh
+
       - run:
-          command: ./tests/test-threshold.sh
           name: Test Threshold keys
+          command: ./tests/test-threshold.sh
+
       - run:
-          command: python3-coverage html --include=cosign
           name: coverage test report
-      - run:
-          command: coverage-badge > htmlcov/coverage.svg
-          name: coverage test badge
+          command: |
+            python3-coverage html --include=cosign
+            coverage-badge > htmlcov/coverage.svg
 
       # Store the HTML coverage report
       - store_artifacts:
