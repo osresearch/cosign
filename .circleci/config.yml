@@ -34,7 +34,7 @@ jobs:
           name: coverage test report
           command: |
             python3-coverage html --include=cosign
-            coverage-badge -o htmlcov/coverage.svg
+            #python3 coverage-badge -o htmlcov/coverage.svg
 
       # Store the HTML coverage report
       - store_artifacts:
