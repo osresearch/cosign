@@ -19,7 +19,7 @@ jobs:
               python3-coverage \
               python3-cryptography \
 
-            pip3 install coverage-badge
+            pip3 install coverage coverage-badge
             python3-coverage erase
 
       - run:
