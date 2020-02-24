@@ -16,8 +16,8 @@ jobs:
           command: |
             sudo apt update
             sudo apt install -y \
-		python3-coverage \
-		python3-cryptography \
+              python3-coverage \
+              python3-cryptography \
 
             pip3 install coverage-badge
             python3-coverage erase
