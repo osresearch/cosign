@@ -1,5 +1,5 @@
-[![CircleCI status badge](https://circleci.com/gh/osresearch/cosign.svg?style=svg)](https://circleci.com/gh/osresearch/cosign)
-[Coverage](https://circleci.com/api/v1/project/osresearch/cosign/latest/artifacts/0/htmlcov/cosign.html)
+* Build status: [![CircleCI status badge](https://circleci.com/gh/osresearch/cosign.svg?style=svg)](https://circleci.com/gh/osresearch/cosign)
+* Code coverage: [report](https://circleci.com/api/v1/project/osresearch/cosign/latest/artifacts/0/htmlcov/cosign.html)
 
 
 ![Multiple overlapping cosines](logo.png)
@@ -186,6 +186,43 @@ values, nor the primes `p` & `q` and the `dp` & `dq` values, that the
 hardware tokens use to perform efficient RSA operations.  The threshold
 keys especially are not suitable for hardware since they use non-standard
 representation.
+
+
+# FAQ
+
+* Why RSA?
+
+The main reason is that it is widely used, despite the calls to
+[seriously, fuck RSA](https://blog.trailofbits.com/2019/07/08/fuck-rsa/).
+The UEFI SecureBoot infrastructure uses it, so for interoperability
+it is necessary to support it as well as the padding modes that it uses.
+
+* Why 2048 bit keys?
+
+Again interoperability with common devices.  Many of the firmwares out
+there won't handle RSA 4Kb keys, so sticking with the "reasonable"
+value of 2048 works for now.  It is just a parameter in the Python code,
+so it could easily be increased [with a command line argument](https://github.com/osresearch/cosign/issues/9).
+
+
+* Why PKCS#1 v1.5 instead of OEAP or RSA-PSS?
+
+The determinism that makes PKCS#1 v1.5 potentially dangerous as a
+padding oracle is also what enables the offline signing of messages
+without any communication.  [OAEP](https://en.wikipedia.org/wiki/Optimal_asymmetric_encryption_padding) and [RSA-PSS](https://en.wikipedia.org/wiki/Probabilistic_signature_scheme)
+avoid the oracle attack, but require the signing parties to agree
+upon the random salt values before signing.  This doesn't work for
+the CI or some of the other use cases where the different signers are
+supposed to arrive at the same input message without communication.
+
+
+* What about algorithms to eliminate the Trusted Dealer phase?
+
+[Pull requests welcome!](https://github.com/osresearch/cosign/issues/8)
+Most of the academic papers are difficult to follow and few have provided
+the source code behind their algorithms.  For many use cases the trusted
+dealer is unfortunate but not a deal breaker, and it was expedient to
+implement.
 
 
 
