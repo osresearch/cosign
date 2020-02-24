@@ -12,11 +12,24 @@ jobs:
 #      - python/install-deps
 #      - python/save-cache
       - run:
-          command: ./test-full.sh
+          command: python3-coverage erase
+          name: Initialize coverage test
+      - run:
+          command: ./tests/test-unanimous.sh
           name: Test Unanimous keys
       - run:
-          command: ./test-threshold.sh
+          command: ./tests/test-threshold.sh
           name: Test Threshold keys
+      - run:
+          command: python3-coverage html --include=cosign
+          name: coverage test report
+      - run:
+          command: coverage-badge > htmlcov/coverage.svg
+          name: coverage test badge
+
+      # Store the HTML coverage report
+      - store_artifacts:
+          path: htmlcov
 
 workflows:
   main:
