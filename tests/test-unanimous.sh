@@ -4,18 +4,16 @@
 # Merge the partial signatures
 # Use openssl to validate the signature
 
-TMP=`mktemp -d`
+. ./tests/test-functions.sh
 
-die() { echo >&1 "$@" ; exit 1 ; }
-
-./cosign genkey 4 $TMP/key \
+$COSIGN genkey 4 $TMP/key \
 || die "key generation failed"
 
 echo "The Magic Words are Squeamish Ossifrage $$" \
 	> $TMP/file.txt
 
 for i in 0 1 2 3; do
-	./cosign sign $TMP/key-$i.key \
+	$COSIGN sign $TMP/key-$i.key \
 		< $TMP/file.txt \
 		> $TMP/sig-$i \
 	|| die "$i signature failed"
@@ -25,7 +23,7 @@ done
 #
 # Try a good verification
 #
-./cosign merge $TMP/key.pub \
+$COSIGN merge $TMP/key.pub \
 	$TMP/sig-* \
 	> $TMP/sig \
 || die "signature merge failed"
@@ -41,7 +39,7 @@ openssl dgst \
 #
 # Try the wrong public key
 #
-./cosign genkey 2 $TMP/key2 \
+$COSIGN genkey 2 $TMP/key2 \
 || die "unable to generate second key?"
 
 echo -n >&2 "wrong public key should fail:  "
@@ -68,7 +66,7 @@ openssl dgst \
 # Try with a missing partial signature
 #
 echo -n >&2 "missing signature should fail: "
-./cosign merge $TMP/key.pub \
+$COSIGN merge $TMP/key.pub \
 	$TMP/sig-[123] \
 	> $TMP/sig \
 && die "signature merge did not failed"
@@ -80,10 +78,17 @@ echo -n >&2 "missing signature should fail: "
 dd status=none if=/dev/urandom of=$TMP/sig-0 bs=256 count=1
 
 echo -n >&2 "corrupt signature should fail: "
-./cosign merge $TMP/key.pub \
+$COSIGN merge $TMP/key.pub \
 	$TMP/sig-* \
 	> $TMP/sig \
 && die "signature merge should have failed"
+
+#
+# Try to generate a threshold key from non-threshold keys
+#
+echo -n >&2 "not threshold keys should fail: "
+$COSIGN threshold $TMP/newkey $TMP/key-1.key $TMP/key-2.key \
+&& die "threshold key should have died"
 
 
 ########

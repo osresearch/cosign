@@ -4,19 +4,16 @@
 # Merge the partial signatures
 # Use openssl to validate the signature
 
-TMP=`mktemp -d`
+. ./tests/test-functions.sh
 
-die() { echo >&1 "$@" ; exit 1 ; }
-
-
-./cosign threshold $TMP/key \
+$COSIGN threshold $TMP/key \
 || die "threshold key generation failed"
 
 echo "The Magic Words are Squeamish Ossifrage $$" \
 	> $TMP/file.txt
 
 for i in 0 1 2; do
-	./cosign sign $TMP/key-$i.key \
+	$COSIGN sign $TMP/key-$i.key \
 		< $TMP/file.txt \
 		> $TMP/sig-$i \
 	|| die "$i signature failed"
@@ -26,7 +23,7 @@ done
 #
 # Try all three good verifications
 #
-./cosign merge $TMP/key.pub \
+$COSIGN merge $TMP/key.pub \
 	$TMP/sig-[01] \
 	> $TMP/sig01 \
 || die "01 signature merge failed"
@@ -39,7 +36,7 @@ openssl dgst \
 || die "01 signature verification failed"
 
 
-./cosign merge $TMP/key.pub \
+$COSIGN merge $TMP/key.pub \
 	$TMP/sig-[12] \
 	> $TMP/sig12 \
 || die "12 signature merge failed"
@@ -52,7 +49,7 @@ openssl dgst \
 || die "12 signature verification failed"
 
 
-./cosign merge $TMP/key.pub \
+$COSIGN merge $TMP/key.pub \
 	$TMP/sig-[02] \
 	> $TMP/sig02 \
 || die "02 signature merge failed"
@@ -64,25 +61,24 @@ openssl dgst \
 	< $TMP/file.txt \
 || die "02 signature verification failed"
 
-
 #
 # Regenerate a new key from two of the shards
 # and try a threshold signature
 #
-./cosign threshold $TMP/newkey $TMP/key-2.key $TMP/key-0.key \
+$COSIGN threshold $TMP/newkey $TMP/key-2.key $TMP/key-0.key \
 || die "key re-split failed"
 
-./cosign sign $TMP/newkey-1.key \
+$COSIGN sign $TMP/newkey-1.key \
 	< $TMP/file.txt \
 	> $TMP/newsig-1 \
 || die "1 signature failed"
 
-./cosign sign $TMP/newkey-2.key \
+$COSIGN sign $TMP/newkey-2.key \
 	< $TMP/file.txt \
 	> $TMP/newsig-2 \
 || die "2 signature failed"
 
-./cosign merge $TMP/newkey.pub $TMP/newsig-[12] > $TMP/newsig \
+$COSIGN merge $TMP/newkey.pub $TMP/newsig-[12] > $TMP/newsig \
 || die "re-split merge failed"
 
 echo -n >&2 "re-split correct signatures and key:    "
@@ -92,6 +88,32 @@ openssl dgst \
 	< $TMP/file.txt \
 || die "newsig signature verification failed"
 
+#
+# Regenerate in the other order to test the both paths of
+# the magic detection 
+#
+$COSIGN threshold $TMP/newkey $TMP/key-1.key $TMP/key-0.key \
+|| die "key re-split failed"
+
+$COSIGN sign $TMP/newkey-1.key \
+	< $TMP/file.txt \
+	> $TMP/newsig-1 \
+|| die "1 signature failed"
+
+$COSIGN sign $TMP/newkey-2.key \
+	< $TMP/file.txt \
+	> $TMP/newsig-2 \
+|| die "2 signature failed"
+
+$COSIGN merge $TMP/newkey.pub $TMP/newsig-[12] > $TMP/newsig \
+|| die "re-split merge failed"
+
+echo -n >&2 "re-split correct signatures and key:    "
+openssl dgst \
+	-verify $TMP/key.pub \
+	-signature $TMP/newsig \
+	< $TMP/file.txt \
+|| die "newsig signature verification failed"
 
 
 #
@@ -110,7 +132,7 @@ openssl dgst \
 # Try with a missing partial signature
 #
 echo -n >&2 "missing signature should fail: "
-./cosign merge $TMP/key.pub \
+$COSIGN merge $TMP/key.pub \
 	$TMP/sig-1 \
 	> $TMP/sig \
 && die "signature merge did not failed"
@@ -122,7 +144,7 @@ echo -n >&2 "missing signature should fail: "
 dd status=none if=/dev/urandom of=$TMP/sig-0 bs=256 count=1
 
 echo -n >&2 "01 corrupt signature should fail: "
-./cosign merge $TMP/key.pub \
+$COSIGN merge $TMP/key.pub \
 	$TMP/sig-[02] \
 	> $TMP/sig \
 && die "signature merge should have failed"
