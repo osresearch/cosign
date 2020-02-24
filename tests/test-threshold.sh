@@ -115,6 +115,33 @@ openssl dgst \
 	< $TMP/file.txt \
 || die "newsig signature verification failed"
 
+#
+# Try with the two partial signatures from different shares
+# of the same key
+#
+echo -n >&2 "re-split wrong signatures and key:    "
+$COSIGN merge $TMP/newkey.pub $TMP/newsig-2 $TMP/sig-0 > $TMP/newsig \
+&& die "wrong split should have failed"
+
+#
+# Try to create new private key shares from two wrong shares
+# of the same public key
+#
+echo -n >&2 "resplit wrong keys should fail: "
+$COSIGN threshold $TMP/newkey2 $TMP/key-1.key $TMP/newkey-0.key \
+&& die "key re-split should have failed"
+
+#
+# Try to create with a new private key shares from two wrong
+# shares of different public keys
+#
+$COSIGN threshold $TMP/newkey2 \
+|| die "newkey2 creation failed"
+
+echo -n >&2 "resplit totaly wrong keys should fail: "
+$COSIGN threshold $TMP/newkey3 $TMP/key-1.key $TMP/newkey2-0.key \
+&& die "key re-split should have failed"
+
 
 #
 # Try the wrong file
@@ -148,6 +175,17 @@ $COSIGN merge $TMP/key.pub \
 	$TMP/sig-[02] \
 	> $TMP/sig \
 && die "signature merge should have failed"
+
+#
+# Missing key files
+#
+echo -n >&2 "missing private key should fail: "
+echo hello | $COSIGN sign no-such-file \
+&& die "should have failed"
+
+echo -n >&2 "missing public key should fail: "
+echo hello | $COSIGN merge no-such-file also-no-such-file \
+&& die "should have failed"
 
 
 ########

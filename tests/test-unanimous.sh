@@ -84,6 +84,17 @@ $COSIGN merge $TMP/key.pub \
 && die "signature merge should have failed"
 
 #
+# Try the wrong length partial signature
+#
+dd status=none if=/dev/urandom of=$TMP/sig-0 bs=16 count=1
+
+echo -n >&2 "short signatures should fail:  "
+$COSIGN merge $TMP/key.pub \
+	$TMP/sig-* \
+	> $TMP/sig \
+&& die "signature merge should have failed"
+
+#
 # Try to generate a threshold key from non-threshold keys
 #
 echo -n >&2 "not threshold keys should fail: "
