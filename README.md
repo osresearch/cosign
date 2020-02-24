@@ -1,3 +1,7 @@
+[![CircleCI status badge](https://circleci.com/gh/osresearch/cosign.svg?style=svg)](https://circleci.com/gh/osresearch/cosign)
+[Coverage](https://circleci.com/api/v1/project/osresearch/cosign/latest/artifacts/0/htmlcov/cosign.html)
+
+
 ![Multiple overlapping cosines](logo.png)
 
 # `cosign`: Cooperative RSA signatures
@@ -183,10 +187,6 @@ hardware tokens use to perform efficient RSA operations.  The threshold
 keys especially are not suitable for hardware since they use non-standard
 representation.
 
-
-# Test status
-
-[![CircleCI status badge](https://circleci.com/gh/osresearch/cosign.svg?style=svg)](https://circleci.com/gh/osresearch/cosign)
 
 
 # Inspiration
