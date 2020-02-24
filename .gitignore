@@ -7,3 +7,5 @@
 *.crt
 .*.d
 .*.swp
+.coverage
+htmlcov
