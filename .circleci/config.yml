@@ -14,8 +14,8 @@ jobs:
       - run:
           name: Install code coverage deps
           command: |
-            apt update
-            apt install -y \
+            sudo apt update
+            sudo apt install -y \
               python3-coverage \
               coverage-badge \
             python3-coverage erase
