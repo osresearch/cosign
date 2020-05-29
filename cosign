@@ -3,7 +3,11 @@
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization, hashes, padding
+from cryptography import x509
+from cryptography.x509.oid import NameOID
 from sys import argv, stdin, stdout, stderr, exit
+from subprocess import run
+import datetime
 import os
 
 usage = """Usage:
@@ -119,6 +123,37 @@ def write_key(filename, key):
 		encryption_algorithm = serialization.NoEncryption(),
 	))
 
+def write_x509(filename, key, subject='cosign.dev', issuer='cosign.dev'):
+	# do NOT write out the full key
+	#write_key(basename + ".key", key)
+	one_year = datetime.timedelta(1, 0, 0) * 365
+	today = datetime.datetime.today()
+
+	# create an x509 cert instead
+	pub = key.public_key()
+
+	cert = x509 \
+	.CertificateBuilder() \
+	.subject_name(x509.Name([
+		x509.NameAttribute(NameOID.COMMON_NAME, subject),
+	])) \
+	.issuer_name(x509.Name([
+		x509.NameAttribute(NameOID.COMMON_NAME, issuer),
+	])) \
+	.not_valid_before(today) \
+	.not_valid_after(today + one_year) \
+	.serial_number(x509.random_serial_number()) \
+	.public_key(key.public_key()) \
+	.sign(
+		private_key = key,
+		algorithm = hashes.SHA256(),
+		backend = default_backend(),
+	)
+
+	write_bytes(filename, cert.public_bytes(
+		encoding = serialization.Encoding.PEM,
+	))
+
 # when writing a new key based on the private components,
 # we don't fill in the Chinese Remainder Theorem (CRT) components
 # which will force OpenSSL to use only the private exponent (d)
@@ -144,11 +179,9 @@ def genkey(shares, basename):
 	public = pubkey.public_numbers()
 	priv = key.private_numbers()
 
-	# write out this key
+	# write out this public key and a certificate for the key
 	write_pubkey(basename + ".pub", pubkey)
-
-	# do NOT write out the full key
-	#write_key(basename + ".key", key)
+	write_x509(basename + ".pem", key)
 
 	fake_d_sum = priv.d
 
@@ -190,9 +223,7 @@ def threshold_split(basename, key):
 
 	# write out this key
 	write_pubkey(basename + ".pub", pubkey)
-
-	# do NOT write out the full key
-	#write_key(basename + ".key", key)
+	write_x509(basename + ".pem", key)
 
 	# Generate three fake d values
 	# one for 0+1, one for 1+2 and one for 2+0
